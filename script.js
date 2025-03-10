@@ -126,8 +126,9 @@ function readFile(file) {
     });
 }
 
+
 async function generateQuestions(content, apiKey) {
-    const questionCount = document.getElementById('question-count').value;
+    const questionCount = getQuestionCount();
     
     try {
         console.log("Sending request to OpenRouter API...");
@@ -145,15 +146,16 @@ async function generateQuestions(content, apiKey) {
                 max_tokens: 2000,
                 messages: [{
                     role: 'user',
-                    content: `Generate ${questionCount} multiple-choice questions based on the following content. 
-                    Format your response as a JSON array with the following structure:
+                    content: `Generate ${questionCount} multiple-choice questions based on the following content.
+                    IMPORTANT: Your response must be a valid JSON array with no additional text.
+                    Format your response exactly like this:
                     [
-                        {
-                            "question": "Question text",
-                            "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
-                            "correct": 0,
-                            "explanation": "Explanation text"
-                        }
+                      {
+                        "question": "Question text",
+                        "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+                        "correct": 0,
+                        "explanation": "Explanation text"
+                      }
                     ]
                     
                     Content: ${content}`
@@ -161,6 +163,56 @@ async function generateQuestions(content, apiKey) {
                 extra_body: {}
             })
         });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error?.message || 'API request failed');
+        }
+
+        const data = await response.json();
+        const contentString = data.choices[0].message.content;
+        
+        console.log("API response received:", contentString);
+        
+        // Enhanced JSON extraction
+        try {
+            // First attempt: Try direct JSON parsing
+            return JSON.parse(contentString);
+        } catch (directParseError) {
+            console.log("Direct parsing failed, trying to extract JSON...");
+            
+            // Second attempt: Extract JSON from text
+            let jsonStartIndex = contentString.indexOf('[');
+            let jsonEndIndex = contentString.lastIndexOf(']') + 1;
+            
+            if (jsonStartIndex === -1 || jsonEndIndex === 0) {
+                throw new Error('API returned content without valid JSON array');
+            }
+            
+            const jsonContent = contentString.substring(jsonStartIndex, jsonEndIndex);
+            console.log("Extracted JSON:", jsonContent);
+            
+            try {
+                return JSON.parse(jsonContent);
+            } catch (extractedParseError) {
+                console.error("JSON parsing error:", extractedParseError);
+                
+                // Third attempt: Try to fix common JSON format issues
+                let fixedJson = jsonContent
+                    .replace(/,\s*]/g, ']')  // Remove trailing commas
+                    .replace(/"\s*}/g, '"}') // Fix missing commas
+                    .replace(/"\s*{/g, '",{'); // Fix missing commas
+                    
+                console.log("Attempting to parse fixed JSON:", fixedJson);
+                return JSON.parse(fixedJson);
+            }
+        }
+    } catch (error) {
+        console.error('API Error:', error);
+        throw new Error('Failed to generate questions: ' + error.message);
+    }
+}
+
 
         if (!response.ok) {
             const errorData = await response.json();
