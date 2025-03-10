@@ -1,52 +1,56 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hant">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI Quiz Generator</title>
+    <title>AI 測驗生成器 | AI-Powered Quiz Generator</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
     <div class="container">
-        <div class="upload-section">
-            <h1>📚 AI-Powered Quiz Generator</h1>
-            
+        <header>
+            <h1>🧠 AI 測驗生成器</h1>
+            <p>輸入任何文本內容自動生成選擇題（支持中文/英文）</p>
+        </header>
+
+        <div class="config-section">
+            <div class="config-group api-key-group">
+                <label for="api-key">OpenRouter API key：</label>
+                <input type="password" id="api-key" placeholder="輸入你的 OpenRouter API 密鑰">
+                <button id="save-api-key" class="btn secondary">Save key</button>
+                <button id="clear-api-key" class="btn secondary">Clear key</button>
+                <span id="api-status"></span>
+            </div>
+
             <div class="config-group">
-                <label for="question-count">Number of Questions:</label>
-                <select id="question-count">
-                    <option value="3">3 Questions</option>
-                    <option value="5" selected>5 Questions</option>
-                    <option value="10">10 Questions</option>
-                </select>
+                <label>Number of questions:</label>
+                <div class="question-count-container">
+                    <div class="preset-buttons">
+                        <button type="button" class="btn secondary question-preset" data-value="3">3 題</button>
+                        <button type="button" class="btn secondary question-preset" data-value="5">5 題</button>
+                        <button type="button" class="btn secondary question-preset" data-value="10">10 questions</button>
+                    </div>
+                    <div class="custom-input">
+                        <span class="or-text">Or</span>
+                        <input type="number" id="question-count" min="1" max="50" placeholder="Customizing" value="">
+                        <span class="custom-label">Question</span>
+                    </div>
+                </div>
+                <input type="hidden" id="final-question-count" value="5">
             </div>
-
-            <div class="file-upload">
-                <input type="file" id="file-input" accept=".txt">
-                <label for="file-input" class="btn">Upload Document</label>
-                <span id="file-name">No file chosen</span>
-            </div>
-
-            <div class="manual-input">
-                <textarea id="text-input" placeholder="Or enter your content here..."></textarea>
-            </div>
-
-            <button class="btn primary" id="generate-btn">Generate Quiz</button>
         </div>
 
-        <div class="quiz-section hidden">
-            <div class="quiz-header">
-                <span id="progress">Question 1/5</span>
-                <span id="score">Score: 0</span>
+        <div class="main-content">
+            <textarea id="content-input" placeholder="Please paste or enter the content here to generate a quiz..."></textarea>
+            <button id="generate-btn" class="btn primary">Generating quiz questions</button>
+            <div id="loading" class="loading hidden">
+                <div class="spinner"></div>
+                <span>Generating quiz questions...</span>
             </div>
-            <div id="question-container"></div>
-            <button class="btn secondary" id="restart-btn">Restart Quiz</button>
-        </div>
-
-        <div class="loading-overlay hidden">
-            <div class="spinner"></div>
-            <p>Generating questions...</p>
+            <div id="quiz-results"></div>
         </div>
     </div>
+
     <script src="script.js"></script>
 </body>
 </html>
