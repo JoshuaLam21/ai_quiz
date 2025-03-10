@@ -109,13 +109,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     'X-Title': 'AI-Powered Quiz Generator'
                 },
                 body: JSON.stringify({
-                    model: 'openai/gpt-4o',
+                    model: 'qwen/qwq-32b:free',  // 修改模型名稱
                     temperature: 0.7,
                     max_tokens: 2000,
                     messages: [{
                         role: 'user',
                         content: `生成 ${questionCount} 道選擇題，基於以下內容。請用以下JSON格式回應：[ { "question": "問題", "options": ["選項1", "選項2", "選項3", "選項4"], "correct": 0, "explanation": "解析" } ] 內容：${content}`
-                    }]
+                    }],
+                    extra_body: {}  // 新增必要參數
                 })
             });
 
