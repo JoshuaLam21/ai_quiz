@@ -10,6 +10,9 @@ const uploadSection = document.querySelector('.upload-section');
 const quizSection = document.querySelector('.quiz-section');
 const generateBtn = document.getElementById('generate-btn');
 const questionContainer = document.getElementById('question-container');
+document.querySelectorAll('.btn').forEach(button => {
+    button.addEventListener('click', handleButtonClick);
+});
 
 // Create API Key UI
 const apiKeyGroup = document.createElement('div');
@@ -278,6 +281,40 @@ function resetQuiz() {
 
 function showLoading(show) {
     document.querySelector('.loading-overlay').classList.toggle('hidden', !show);
+}
+
+let isProcessing = false;
+
+function handleButtonClick() {
+    if (isProcessing) return;
+    
+    isProcessing = true;
+    button.classList.add('processing');
+    
+    // 執行操作
+    setTimeout(() => {
+        isProcessing = false;
+        button.classList.remove('processing');
+    }, 2000);
+}
+
+function handleButtonClick(event) {
+    const button = event.target;
+    
+    // 添加視覺反饋
+    button.classList.add('btn-clicked');
+    
+    // 顯示加載狀態
+    button.innerHTML = 'Loading...';
+    
+    // 執行操作（例如API請求）
+    performAction().then(() => {
+        // 操作完成後恢復按鈕狀態
+        button.classList.remove('btn-clicked');
+        button.innerHTML = 'Completed';
+    }).catch(() => {
+        button.innerHTML = 'Retry';
+    });
 }
 
 // Add some extra styling for new elements
