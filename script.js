@@ -1,4 +1,4 @@
-// script.js - with dynamic API key input
+// script.js - with dynamic API key input and OpenRouter integration
 let quiz = {
     questions: [],
     currentQuestion: 0,
@@ -10,15 +10,12 @@ const uploadSection = document.querySelector('.upload-section');
 const quizSection = document.querySelector('.quiz-section');
 const generateBtn = document.getElementById('generate-btn');
 const questionContainer = document.getElementById('question-container');
-document.querySelectorAll('.btn').forEach(button => {
-    button.addEventListener('click', handleButtonClick);
-});
 
 // Create API Key UI
 const apiKeyGroup = document.createElement('div');
 apiKeyGroup.className = 'config-group api-key-group';
 apiKeyGroup.innerHTML = `
-    <label for="api-key">Perplexity API Key:</label>
+    <label for="api-key">OpenRouter API Key:</label>
     <input type="password" id="api-key" placeholder="Enter your API key">
     <button id="save-api-key" class="btn small-btn">Save</button>
     <button id="clear-api-key" class="btn small-btn">Clear</button>
@@ -35,7 +32,7 @@ const clearApiKeyBtn = document.getElementById('clear-api-key');
 const apiStatus = document.getElementById('api-status');
 
 // Check for saved API key
-const savedApiKey = localStorage.getItem('perplexity_api_key');
+const savedApiKey = localStorage.getItem('openrouter_api_key');
 if (savedApiKey) {
     apiKeyInput.value = '••••••••••••••••';
     apiStatus.textContent = '✅ API key saved';
@@ -54,7 +51,7 @@ clearApiKeyBtn.addEventListener('click', clearApiKey);
 function saveApiKey() {
     const apiKey = apiKeyInput.value.trim();
     if (apiKey) {
-        localStorage.setItem('perplexity_api_key', apiKey);
+        localStorage.setItem('openrouter_api_key', apiKey);
         apiKeyInput.value = '••••••••••••••••';
         apiStatus.textContent = '✅ API key saved';
         apiStatus.style.color = 'green';
@@ -65,14 +62,14 @@ function saveApiKey() {
 }
 
 function clearApiKey() {
-    localStorage.removeItem('perplexity_api_key');
+    localStorage.removeItem('openrouter_api_key');
     apiKeyInput.value = '';
     apiStatus.textContent = '❌ API key cleared';
     apiStatus.style.color = 'red';
 }
 
 function getApiKey() {
-    return localStorage.getItem('perplexity_api_key');
+    return localStorage.getItem('openrouter_api_key');
 }
 
 function updateFileName() {
@@ -89,7 +86,7 @@ function updateFileName() {
 async function handleGenerate() {
     const apiKey = getApiKey();
     if (!apiKey) {
-        alert('Please save your Perplexity API key first');
+        alert('Please save your OpenRouter API key first');
         apiKeyInput.focus();
         return;
     }
@@ -133,14 +130,19 @@ async function generateQuestions(content, apiKey) {
     const questionCount = document.getElementById('question-count').value;
     
     try {
-        const response = await fetch('https://api.perplexity.ai/chat/completions', {
+        console.log("Sending request to OpenRouter API...");
+        const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
+                'Authorization': `Bearer ${apiKey}`,
+                'HTTP-Referer': window.location.href,
+                'X-Title': 'AI-Powered Quiz Generator'
             },
             body: JSON.stringify({
-                model: 'pplx-7b-online',
+                model: 'qwen/qwq-32b:free',
+                temperature: 0.7,
+                max_tokens: 2000,
                 messages: [{
                     role: 'user',
                     content: `Generate ${questionCount} multiple-choice questions based on the following content. 
@@ -155,7 +157,8 @@ async function generateQuestions(content, apiKey) {
                     ]
                     
                     Content: ${content}`
-                }]
+                }],
+                extra_body: {}
             })
         });
 
@@ -165,18 +168,35 @@ async function generateQuestions(content, apiKey) {
         }
 
         const data = await response.json();
-        const content = data.choices[0].message.content;
+        const contentString = data.choices[0].message.content;
+        
+        console.log("API response received:", contentString);
         
         // Extract JSON from the response
-        let jsonStartIndex = content.indexOf('[');
-        let jsonEndIndex = content.lastIndexOf(']') + 1;
+        let jsonStartIndex = contentString.indexOf('[');
+        let jsonEndIndex = contentString.lastIndexOf(']') + 1;
         
         if (jsonStartIndex === -1 || jsonEndIndex === 0) {
             throw new Error('Invalid response format from API');
         }
         
-        const jsonContent = content.substring(jsonStartIndex, jsonEndIndex);
-        return JSON.parse(jsonContent);
+        const jsonContent = contentString.substring(jsonStartIndex, jsonEndIndex);
+        console.log("Extracted JSON:", jsonContent);
+        
+        try {
+            return JSON.parse(jsonContent);
+        } catch (parseError) {
+            console.error("JSON parsing error:", parseError);
+            
+            // Try to fix common JSON format issues
+            let fixedJson = jsonContent
+                .replace(/,\s*]/g, ']')  // Remove trailing commas
+                .replace(/"\s*}/g, '"}') // Fix missing commas
+                .replace(/"\s*{/g, '",{'); // Fix missing commas
+                
+            console.log("Attempting to parse fixed JSON:", fixedJson);
+            return JSON.parse(fixedJson);
+        }
     } catch (error) {
         console.error('API Error:', error);
         throw new Error('Failed to generate questions: ' + error.message);
@@ -281,40 +301,6 @@ function resetQuiz() {
 
 function showLoading(show) {
     document.querySelector('.loading-overlay').classList.toggle('hidden', !show);
-}
-
-let isProcessing = false;
-
-function handleButtonClick() {
-    if (isProcessing) return;
-    
-    isProcessing = true;
-    button.classList.add('processing');
-    
-    // 執行操作
-    setTimeout(() => {
-        isProcessing = false;
-        button.classList.remove('processing');
-    }, 2000);
-}
-
-function handleButtonClick(event) {
-    const button = event.target;
-    
-    // 添加視覺反饋
-    button.classList.add('btn-clicked');
-    
-    // 顯示加載狀態
-    button.innerHTML = 'Loading...';
-    
-    // 執行操作（例如API請求）
-    performAction().then(() => {
-        // 操作完成後恢復按鈕狀態
-        button.classList.remove('btn-clicked');
-        button.innerHTML = 'Completed';
-    }).catch(() => {
-        button.innerHTML = 'Retry';
-    });
 }
 
 // Add some extra styling for new elements
