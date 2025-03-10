@@ -1,331 +1,157 @@
-// script.js - with dynamic API key input
-let quiz = {
-    questions: [],
-    currentQuestion: 0,
-    score: 0
-};
+document.addEventListener('DOMContentLoaded', () => {
+    const apiKeyInput = document.getElementById('api-key');
+    const saveApiKeyBtn = document.getElementById('save-api-key');
+    const clearApiKeyBtn = document.getElementById('clear-api-key');
+    const apiStatus = document.getElementById('api-status');
+    const generateBtn = document.getElementById('generate-btn');
+    const contentInput = document.getElementById('content-input');
+    const quizResults = document.getElementById('quiz-results');
+    const loading = document.getElementById('loading');
 
-// DOM Elements
-const uploadSection = document.querySelector('.upload-section');
-const quizSection = document.querySelector('.quiz-section');
-const generateBtn = document.getElementById('generate-btn');
-const questionContainer = document.getElementById('question-container');
-
-// Create API Key UI
-const apiKeyGroup = document.createElement('div');
-apiKeyGroup.className = 'config-group api-key-group';
-apiKeyGroup.innerHTML = `
-    <label for="api-key">Perplexity API Key:</label>
-    <input type="password" id="api-key" placeholder="Enter your API key">
-    <button id="save-api-key" class="btn small-btn">Save</button>
-    <button id="clear-api-key" class="btn small-btn">Clear</button>
-    <span id="api-status"></span>
-`;
-
-// Insert API Key UI before the first child of upload-section
-uploadSection.insertBefore(apiKeyGroup, uploadSection.firstChild);
-
-// API Key Elements
-const apiKeyInput = document.getElementById('api-key');
-const saveApiKeyBtn = document.getElementById('save-api-key');
-const clearApiKeyBtn = document.getElementById('clear-api-key');
-const apiStatus = document.getElementById('api-status');
-
-// Check for saved API key
-const savedApiKey = localStorage.getItem('perplexity_api_key');
-if (savedApiKey) {
-    apiKeyInput.value = '••••••••••••••••';
-    apiStatus.textContent = '✅ API key saved';
-    apiStatus.style.color = 'green';
-}
-
-// Event Listeners
-generateBtn.addEventListener('click', handleGenerate);
-document.getElementById('restart-btn').addEventListener('click', resetQuiz);
-document.getElementById('file-input').addEventListener('change', updateFileName);
-
-// API Key Buttons
-saveApiKeyBtn.addEventListener('click', saveApiKey);
-clearApiKeyBtn.addEventListener('click', clearApiKey);
-
-function saveApiKey() {
-    const apiKey = apiKeyInput.value.trim();
-    if (apiKey) {
-        localStorage.setItem('perplexity_api_key', apiKey);
+    // 初始化API密鑰
+    const savedApiKey = localStorage.getItem('openrouter_api_key');
+    if (savedApiKey) {
         apiKeyInput.value = '••••••••••••••••';
-        apiStatus.textContent = '✅ API key saved';
+        apiStatus.textContent = '✅ 密鑰已保存';
         apiStatus.style.color = 'green';
-    } else {
-        apiStatus.textContent = '❌ Please enter an API key';
+    }
+
+    // 問題數量處理邏輯
+    const finalQuestionCount = document.getElementById('final-question-count');
+    const questionCountInput = document.getElementById('question-count');
+    const presetButtons = document.querySelectorAll('.question-preset');
+
+    // 設置初始活動狀態
+    document.querySelector('.question-preset[data-value="5"]').classList.add('active');
+
+    presetButtons.forEach(button => {
+        button.addEventListener('click', function() {
+            questionCountInput.value = '';
+            presetButtons.forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            finalQuestionCount.value = this.dataset.value;
+        });
+    });
+
+    questionCountInput.addEventListener('input', function() {
+        if (this.value.trim()) {
+            presetButtons.forEach(btn => btn.classList.remove('active'));
+            finalQuestionCount.value = this.value;
+        } else {
+            document.querySelector('.question-preset[data-value="5"]').classList.add('active');
+            finalQuestionCount.value = 5;
+        }
+    });
+
+    // API密鑰操作
+    saveApiKeyBtn.addEventListener('click', saveApiKey);
+    clearApiKeyBtn.addEventListener('click', clearApiKey);
+
+    generateBtn.addEventListener('click', async () => {
+        const content = contentInput.value.trim();
+        const apiKey = localStorage.getItem('openrouter_api_key');
+
+        if (!content) {
+            alert('請輸入要生成測驗的內容');
+            return;
+        }
+
+        if (!apiKey) {
+            alert('請先輸入並保存 OpenRouter API 密鑰');
+            return;
+        }
+
+        try {
+            loading.classList.remove('hidden');
+            const questions = await generateQuestions(content, apiKey);
+            displayQuestions(questions);
+        } catch (error) {
+            alert(error.message);
+        } finally {
+            loading.classList.add('hidden');
+        }
+    });
+
+    function saveApiKey() {
+        const apiKey = apiKeyInput.value.trim();
+        if (apiKey) {
+            localStorage.setItem('openrouter_api_key', apiKey);
+            apiKeyInput.value = '••••••••••••••••';
+            apiStatus.textContent = '✅ 密鑰已保存';
+            apiStatus.style.color = 'green';
+        } else {
+            apiStatus.textContent = '❌ 請輸入 API 密鑰';
+            apiStatus.style.color = 'red';
+        }
+    }
+
+    function clearApiKey() {
+        localStorage.removeItem('openrouter_api_key');
+        apiKeyInput.value = '';
+        apiStatus.textContent = '❌ 密鑰已清除';
         apiStatus.style.color = 'red';
     }
-}
 
-function clearApiKey() {
-    localStorage.removeItem('perplexity_api_key');
-    apiKeyInput.value = '';
-    apiStatus.textContent = '❌ API key cleared';
-    apiStatus.style.color = 'red';
-}
-
-function getApiKey() {
-    return localStorage.getItem('perplexity_api_key');
-}
-
-function updateFileName() {
-    const fileInput = document.getElementById('file-input');
-    const fileName = document.getElementById('file-name');
-    
-    if (fileInput.files.length > 0) {
-        fileName.textContent = fileInput.files[0].name;
-    } else {
-        fileName.textContent = 'No file chosen';
-    }
-}
-
-async function handleGenerate() {
-    const apiKey = getApiKey();
-    if (!apiKey) {
-        alert('Please save your Perplexity API key first');
-        apiKeyInput.focus();
-        return;
+    function getQuestionCount() {
+        return parseInt(finalQuestionCount.value) || 5;
     }
 
-    const content = await getContent();
-    if (!content) {
-        alert('Please input content or upload a file');
-        return;
-    }
-    
-    showLoading(true);
-    try {
-        quiz.questions = await generateQuestions(content, apiKey);
-        startQuiz();
-    } catch (error) {
-        console.error('Error:', error);
-        alert('Failed to generate questions: ' + error.message);
-    } finally {
-        showLoading(false);
-    }
-}
-
-async function getContent() {
-    const file = document.getElementById('file-input').files[0];
-    if (file) {
-        return await readFile(file);
-    }
-    return document.getElementById('text-input').value.trim();
-}
-
-function readFile(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => resolve(e.target.result);
-        reader.onerror = reject;
-        reader.readAsText(file);
-    });
-}
-
-async function generateQuestions(content, apiKey) {
-    const questionCount = document.getElementById('question-count').value;
-    
-    try {
-        const response = await fetch('https://api.perplexity.ai/chat/completions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
-                model: 'pplx-7b-online',
-                messages: [{
-                    role: 'user',
-                    content: `Generate ${questionCount} multiple-choice questions based on the following content. 
-                    Format your response as a JSON array with the following structure:
-                    [
-                        {
-                            "question": "Question text",
-                            "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
-                            "correct": 0,
-                            "explanation": "Explanation text"
-                        }
-                    ]
-                    
-                    Content: ${content}`
-                }]
-            })
-        });
-
-        if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error?.message || 'API request failed');
-        }
-
-        const data = await response.json();
-        const content = data.choices[0].message.content;
+    async function generateQuestions(content, apiKey) {
+        const questionCount = getQuestionCount();
         
-        // Extract JSON from the response
-        let jsonStartIndex = content.indexOf('[');
-        let jsonEndIndex = content.lastIndexOf(']') + 1;
-        
-        if (jsonStartIndex === -1 || jsonEndIndex === 0) {
-            throw new Error('Invalid response format from API');
+        try {
+            const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`,
+                    'HTTP-Referer': window.location.href,
+                    'X-Title': 'AI-Powered Quiz Generator'
+                },
+                body: JSON.stringify({
+                    model: 'openai/gpt-4o',
+                    temperature: 0.7,
+                    max_tokens: 2000,
+                    messages: [{
+                        role: 'user',
+                        content: `生成 ${questionCount} 道選擇題，基於以下內容。請用以下JSON格式回應：[ { "question": "問題", "options": ["選項1", "選項2", "選項3", "選項4"], "correct": 0, "explanation": "解析" } ] 內容：${content}`
+                    }]
+                })
+            });
+
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.error?.message || 'API請求失敗');
+            }
+
+            const data = await response.json();
+            const contentString = data.choices[0].message.content;
+            
+            let jsonStartIndex = contentString.indexOf('[');
+            let jsonEndIndex = contentString.lastIndexOf(']') + 1;
+            if (jsonStartIndex === -1 || jsonEndIndex === 0) {
+                throw new Error('API返回格式錯誤');
+            }
+            return JSON.parse(contentString.substring(jsonStartIndex, jsonEndIndex));
+        } catch (error) {
+            console.error('API錯誤:', error);
+            throw new Error('生成題目失敗: ' + error.message);
         }
-        
-        const jsonContent = content.substring(jsonStartIndex, jsonEndIndex);
-        return JSON.parse(jsonContent);
-    } catch (error) {
-        console.error('API Error:', error);
-        throw new Error('Failed to generate questions: ' + error.message);
     }
-}
 
-function startQuiz() {
-    uploadSection.classList.add('hidden');
-    quizSection.classList.remove('hidden');
-    quiz.currentQuestion = 0;
-    quiz.score = 0;
-    renderQuestion();
-}
-
-function renderQuestion() {
-    const current = quiz.questions[quiz.currentQuestion];
-    
-    const optionsHTML = current.options.map((opt, i) => `
-        <div class="option" data-index="${i}">${String.fromCharCode(65 + i)}. ${opt}</div>
-    `).join('');
-
-    questionContainer.innerHTML = `
-        <div class="question">
-            <h3>${current.question}</h3>
-            <div class="options">${optionsHTML}</div>
-        </div>
-    `;
-
-    document.querySelectorAll('.option').forEach(option => {
-        option.addEventListener('click', handleAnswer);
-    });
-
-    updateProgress();
-}
-
-function handleAnswer(e) {
-    const selectedIndex = parseInt(e.target.dataset.index);
-    const current = quiz.questions[quiz.currentQuestion];
-    const correctIndex = current.correct;
-    
-    // Mark correct/incorrect
-    document.querySelectorAll('.option').forEach(opt => {
-        const optIndex = parseInt(opt.dataset.index);
-        if (optIndex === correctIndex) {
-            opt.classList.add('correct');
-        } else if (optIndex === selectedIndex) {
-            opt.classList.add('incorrect');
-        }
-        opt.style.pointerEvents = 'none';
-    });
-    
-    // Add explanation
-    const explanationDiv = document.createElement('div');
-    explanationDiv.className = 'explanation';
-    explanationDiv.innerHTML = `
-        <p><strong>${selectedIndex === correctIndex ? 'Correct!' : 'Incorrect!'}</strong></p>
-        <p>${current.explanation}</p>
-    `;
-    questionContainer.appendChild(explanationDiv);
-    
-    // Update score
-    if (selectedIndex === correctIndex) {
-        quiz.score++;
+    function displayQuestions(questions) {
+        quizResults.innerHTML = questions.map((q, index) => `
+            <div class="quiz-item">
+                <h3>第 ${index + 1} 題</h3>
+                <p>${q.question}</p>
+                <ul>${q.options.map((o, i) => `
+                    <li>${String.fromCharCode(65 + i)}) ${o}</li>
+                `).join('')}</ul>
+                <div class="correct-answer">
+                    ✅ 正確答案：${String.fromCharCode(65 + q.correct)}<br>
+                    📖 解析：${q.explanation}
+                </div>
+            </div>
+        `).join('');
     }
-    
-    // Enable next button or show final score
-    setTimeout(() => {
-        quiz.currentQuestion++;
-        if (quiz.currentQuestion < quiz.questions.length) {
-            renderQuestion();
-        } else {
-            showFinalScore();
-        }
-    }, 2000);
-    
-    updateProgress();
-}
-
-function updateProgress() {
-    document.getElementById('progress').textContent = 
-        `Question ${quiz.currentQuestion + 1}/${quiz.questions.length}`;
-    document.getElementById('score').textContent = 
-        `Score: ${quiz.score}`;
-}
-
-function showFinalScore() {
-    questionContainer.innerHTML = `
-        <div class="final-score">
-            <h2>Quiz Complete!</h2>
-            <p>Your score: ${quiz.score} out of ${quiz.questions.length}</p>
-            <p class="percentage">
-                ${Math.round((quiz.score / quiz.questions.length) * 100)}%
-            </p>
-        </div>
-    `;
-}
-
-function resetQuiz() {
-    uploadSection.classList.remove('hidden');
-    quizSection.classList.add('hidden');
-}
-
-function showLoading(show) {
-    document.querySelector('.loading-overlay').classList.toggle('hidden', !show);
-}
-
-// Add some extra styling for new elements
-document.head.insertAdjacentHTML('beforeend', `
-<style>
-    .api-key-group {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin: 1rem 0;
-        justify-content: center;
-    }
-    
-    #api-key {
-        padding: 0.5rem;
-        border: 2px solid #e2e8f0;
-        border-radius: 0.5rem;
-        width: 250px;
-    }
-    
-    .small-btn {
-        padding: 0.4rem 0.8rem;
-        font-size: 0.9rem;
-    }
-    
-    #api-status {
-        font-size: 0.9rem;
-        margin-left: 0.5rem;
-    }
-    
-    .explanation {
-        margin-top: 1rem;
-        padding: 1rem;
-        background: #f1f5f9;
-        border-radius: 0.5rem;
-        border-left: 4px solid var(--primary-color);
-    }
-    
-    .final-score {
-        text-align: center;
-        padding: 2rem;
-    }
-    
-    .percentage {
-        font-size: 2rem;
-        font-weight: bold;
-        color: var(--primary-color);
-        margin: 1rem 0;
-    }
-</style>
-`);
+});
